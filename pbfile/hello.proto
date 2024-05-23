@@ -1,0 +1,13 @@
+syntax = "proto3";
+option go_package = "proto_generated/pb";
+package pb;
+
+message Person {
+  string name=1;
+  int64 age=2;
+  double length=3;
+}
+
+service hello{
+  rpc sayHello(Person) returns (Person);
+}
