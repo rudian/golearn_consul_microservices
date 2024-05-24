@@ -8,9 +8,11 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"log"
+	"time"
 )
 
 func main() {
+	now := time.Now()
 	//1. 启动consul，注入consul服务地址
 	consulService, err := consul.NewService("127.0.0.1:8500")
 	if err != nil {
@@ -50,4 +52,5 @@ func main() {
 	}
 
 	fmt.Println(hello)
+	fmt.Println(time.Since(now))
 }
