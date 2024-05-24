@@ -3,33 +3,31 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/hashicorp/consul/api"
+	"golearn_consul_microservices/consul"
 	"golearn_consul_microservices/proto_generated/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"log"
-	"strconv"
 )
 
 func main() {
-	consulConfig := api.DefaultConfig()
-
-	consulClient, err := api.NewClient(consulConfig)
+	//1. 启动consul，注入consul服务地址
+	consulService, err := consul.NewService("127.0.0.1:8500")
 	if err != nil {
-		fmt.Println(err)
+		log.Fatal(err)
 		return
 	}
 
-	service, _, err := consulClient.Health().Service("hello service", "aa", true, nil)
+	//2. 从consul获取服务的地址和端口
+	serviceAddress, err := consulService.GetServiceAddress("hello_service")
 	if err != nil {
+		log.Fatal(err)
 		return
 	}
 
-	fmt.Println(service[0].Service)
-	address := service[0].Service.Address + ":" + strconv.Itoa(service[0].Service.Port)
-
+	//3. 往微服务端口尽量链接
 	conn, err := grpc.NewClient(
-		address,
+		serviceAddress,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
@@ -37,7 +35,10 @@ func main() {
 	}
 	defer conn.Close()
 
+	//4. 把grpc链接和微服务function做绑定
 	grpcClient := pb.NewHelloClient(conn)
+
+	//5. 调用微服务的function，hello获得service微服务的回传
 	hello, err := grpcClient.SayHello(context.TODO(), &pb.Person{
 		Name:   "kiat",
 		Age:    18,

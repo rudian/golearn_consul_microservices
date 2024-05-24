@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/hashicorp/consul/api"
+	"golearn_consul_microservices/consul"
 	"golearn_consul_microservices/proto_generated/pb"
 	"google.golang.org/grpc"
 	"log"
@@ -27,56 +27,27 @@ func (this *Hello) SayHello(ctx context.Context, p *pb.Person) (*pb.Person, erro
 }
 
 func main() {
-	consulConfig := api.DefaultConfig()
-
-	consulClient, err := api.NewClient(consulConfig)
+	//1. 启动consul，注入consul服务地址
+	consulService, _ := consul.NewService("127.0.0.1:8500")
+	//2. 注册服务
+	err := consulService.RegisterService(consul.RegisterService{
+		ServiceName:   "hello_service",
+		Address:       "127.0.0.1",
+		Port:          3000,
+		HeathCheckTTL: 10 * time.Second,
+	})
 	if err != nil {
-		fmt.Println("consul client error:", err)
+		log.Fatalln(err)
 		return
 	}
 
-	healthCheckId := "check1"
-	HealthCheckTTl := 10 * time.Second
-	reg := api.AgentServiceRegistration{
-		Tags:    []string{"aa", "bb"},
-		Name:    "hello service",
-		Address: "127.0.0.1",
-		Port:    3000,
-		Check: &api.AgentServiceCheck{
-			DeregisterCriticalServiceAfter: HealthCheckTTl.String(),
-			TLSSkipVerify:                  true,
-			TTL:                            HealthCheckTTl.String(),
-			CheckID:                        healthCheckId,
-		},
-	}
-
-	errAgent := consulClient.Agent().ServiceRegister(&reg)
-	if errAgent != nil {
-		fmt.Println("consul register error:", errAgent)
-		return
-	}
-
-	go func() {
-		ticker := time.NewTicker(time.Second * 5)
-		for {
-			err := consulClient.Agent().UpdateTTL(
-				healthCheckId,
-				"online",
-				api.HealthPassing,
-			)
-			if err != nil {
-				log.Fatalln(err)
-				return
-			}
-			<-ticker.C
-		}
-	}()
-
-	//--------------
-
+	//3. 启动grpc服务器
 	grpcServer := grpc.NewServer()
+
+	//4. 把hello和grpc服务器绑定
 	pb.RegisterHelloServer(grpcServer, &Hello{})
 
+	//5. 启动端口监听
 	listener, err := net.Listen("tcp", "127.0.0.1:3000")
 	if err != nil {
 		fmt.Println("listener error:", err)
@@ -86,6 +57,7 @@ func main() {
 
 	fmt.Println("Service starting successfully")
 
+	//6. grpc和端口监听绑定
 	errGrpc := grpcServer.Serve(listener)
 	if errGrpc != nil {
 		fmt.Println("grpc server error:", errGrpc)
